@@ -125,8 +125,8 @@ class LoginWidget(urwid.Edit):
     def __init__(self, prompt):
         self.username_in = False
         self.password_in = False
-        self.username = ''
-        self.password = ''
+        self.username = None
+        self.password = None
         urwid.Edit.__init__(self, prompt)
 
     def keypress(self, size, key):
@@ -144,8 +144,8 @@ class LoginWidget(urwid.Edit):
                     self, 'login_authenticate', (self.username, self.password))
                 return
         elif key == 'esc':
-            self.username = ''
-            self.password = ''
+            self.username = None
+            self.password = None
             self.username_in = False
             self.password_in = False
             urwid.emit_signal(self, 'login_escaped', None)
@@ -161,8 +161,8 @@ class LoginWidget(urwid.Edit):
 
 class MyApp(object):
     def __init__(self):
-        self.username = ''
-        self.password = ''
+        self.username = None
+        self.password = None
         self.cached_list = []
         self.cached_sections = {}
         self.cached_anime = None
@@ -389,6 +389,8 @@ class MyApp(object):
         self.current_view = 2
         self.display_to_top('MALSnakes - pulling in anime...')
         lst = malconstrict.malapi.search_anime(query)
+        if lst == None:
+            lst = []
         malconstrict.helpers.sort_anime(lst, how='title')
         self.cached_list = lst
         self.cached_sections = {}
