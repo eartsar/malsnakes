@@ -167,14 +167,19 @@ class MyApp(object):
         self.cached_sections = {}
         self.cached_anime = None
         self.authenticated = False
-        self.howsorted = 0
         self.listowner = ''
         self.cats = ('watching', 'completed', 'dropped', 'on-hold', 'plan to watch')
-        self.sorts = ('sort: categorized by title',
-                    'sort: categorized by title',
+        self.catfocus = 0
+        self.list_sorts = ('sort: categorized by title',
+                    'sort: categorized by score',
                     'sort: full by title',
                     'sort: full by score'
         )
+        self.list_sort_type = 0
+        self.anime_search_sorts = ('sort: by title', 'sort: by name')
+        self.anime_search_sort_type = 0
+        self.views = ('blank', 'personal_list', 'query_list', 'detailed_entry')
+        self.current_view = 0
         
         # defines the color palette of the main window
         palette = [
@@ -187,7 +192,7 @@ class MyApp(object):
         # The header bar of the window
         self.header = urwid.AttrMap(urwid.Text('MALSnakes - not logged in!'), 'head')
         # The default footer bar of the window
-        self.default_footer = urwid.AttrMap(urwid.Text("l - login      r - pull yours      p - pull other's      v - view selection      s - search list      q - quit"), 'foot')
+        self.default_footer = urwid.AttrMap(urwid.Text("l - login      r - pull yours      p - pull other's      v - view selection      s - search list\ntab - change sort      left/right - change category      q - quit"), 'foot')
         
         # The default items to be displayed (prior to authentication)
         items = []
@@ -220,6 +225,10 @@ class MyApp(object):
             self.listbox.keypress([0, 1], 'down')
         elif data is 'up':
             self.listbox.keypress([0, 1], 'up')
+        elif data is 'left':
+            self.change_cat_focus(back = True)
+        elif data is 'right':
+            self.change_cat_focus()
         elif data is 'q':
             raise urwid.ExitMainLoop()
         elif data is 'p':
@@ -237,7 +246,7 @@ class MyApp(object):
             self.view.set_header(urwid.AttrWrap(urwid.Text('selected: %s' % str(focus)), 'head'))
         elif data is 'l':
             self.login()
-        elif data is 't':
+        elif data is 'tab':
             self.change_list_sort()
 
 
@@ -255,85 +264,152 @@ class MyApp(object):
             self.pull_in_list(self.username)
     
     
-    def change_list_sort(self):
-        if self.cached_list == [] or self.cached_sections == {}:
-            print self.cached_list
-            print self.cached_sections
+    def change_cat_focus(self, back=False):
+        if self.current_view != 1:
             return
         
-        # categorized by title -> categorized by score -> full by title -> full by score
-        self.howsorted = (self.howsorted + 1) % 4
-        if self.howsorted == 0:
-            self.cached_sections = malconstrict.helpers.sort_anime_sectional(self.cached_list, how='title')
-        elif self.howsorted == 1:
-            self.cached_sections = malconstrict.helpers.sort_anime_sectional(self.cached_list, how='score')
-        elif self.howsorted == 2:
-            malconstrict.helpers.sort_anime(self.cached_list, how='title')
-        elif self.howsorted == 3:
-            malconstrict.helpers.sort_anime(self.cached_list, how='score')
+        if not back:
+            self.catfocus = (self.catfocus + 1) % len(self.cats)
+        elif back:
+            self.catfocus = (self.catfocus - 1) % len(self.cats)
         
         items = []
-        if self.howsorted == 0 or self.howsorted == 1:
-            for cat in self.cats:
-                i = 1
-                cat_anime = self.cached_sections[cat]
-                items.append(CategoryItemWidget(cat))
-                for anime in cat_anime:
-                    items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
-                    i = i + 1
-        else:
+        if self.list_sort_type == 0 or self.list_sort_type == 1:
             i = 1
-            for anime in self.cached_list:
+            cat_anime = self.cached_sections[self.cats[self.catfocus]]
+            items.append(CategoryItemWidget(self.cats[self.catfocus]))
+            for anime in cat_anime:
                 items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
                 i = i + 1
+        elif self.list_sort_type == 2 or self.list_sort_type == 3:
+            return
+        
         walker = urwid.SimpleListWalker(items)
         self.listbox = urwid.ListBox(walker)
         self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
         self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
         self.view.set_focus('body')
+        
 
-        if self.listowner == self.username:
-            self.display_to_top('MALSnakes - viewing your list   [' + self.sorts[self.howsorted] + ']')
-        else:
-            self.display_to_top('MALSnakes - viewing ' + self.listowner + "'s list   [" + self.sorts[self.howsorted] + ']')
+    def change_list_sort(self):
+        if self.current_view == 0:
+            return
+        
+        elif self.current_view == 1:
+            # categorized by title -> categorized by score -> full by title -> full by score
+            self.list_sort_type = (self.list_sort_type + 1) % len(self.list_sorts)
+            if self.list_sort_type == 0:
+                self.cached_sections = malconstrict.helpers.sort_anime_sectional(self.cached_list, how='title')
+            elif self.list_sort_type == 1:
+                self.cached_sections = malconstrict.helpers.sort_anime_sectional(self.cached_list, how='score', descending=True)
+            elif self.list_sort_type == 2:
+                malconstrict.helpers.sort_anime(self.cached_list, how='title')
+            elif self.list_sort_type == 3:
+                malconstrict.helpers.sort_anime(self.cached_list, how='score', descending=True)
+        
+            items = []
+            if self.list_sort_type == 0 or self.list_sort_type == 1:
+                i = 1
+                cat_anime = self.cached_sections[self.cats[self.catfocus]]
+                items.append(CategoryItemWidget(self.cats[self.catfocus]))
+                for anime in cat_anime:
+                    items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                    i = i + 1
+            else:
+                i = 1
+                for anime in self.cached_list:
+                    items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                    i = i + 1
+            walker = urwid.SimpleListWalker(items)
+            self.listbox = urwid.ListBox(walker)
+            self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
+            self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
+            self.view.set_focus('body')
+
+            if self.listowner == self.username:
+                self.display_to_top('MALSnakes - viewing your list   [' + self.list_sorts[self.list_sort_type] + ']')
+            else:
+                self.display_to_top('MALSnakes - viewing ' + self.listowner + "'s list   [" + self.list_sorts[self.list_sort_type] + ']')
+        
+        elif self.current_view == 2:
+            self.anime_search_sort_type = (self.anime_search_sort_type + 1) % len(self.anime_search_sorts)
+            if self.anime_search_sort_type == 0:
+                malconstrict.helpers.sort_anime(self.cached_list, how='title')
+            elif self.anime_search_sort_type == 1:
+                malconstrict.helpers.sort_anime(self.cached_list, how='members_score', descending=True)
+            items = []
+            i = 1
+            for anime in self.cached_list:
+                items.append(ItemWidget(i, anime.title + ' [' + str(anime.members_score) + ']'))
+                i = i + 1
+            walker = urwid.SimpleListWalker(items)
+            self.listbox = urwid.ListBox(walker)
+            self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
+            self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
+            self.view.set_focus('body')
+            self.display_to_top('MALSnakes - showing results for "' + self.last_query + '"   [' + self.anime_search_sorts[self.anime_search_sort_type] + ']')
 
 
     def pull_in_list(self, username):
         """Pulls in a user's list."""
-
-        tmp_items = []
-        tmp_items.append(StatusItemWidget('Loading...'))
-        walker = urwid.SimpleListWalker(tmp_items)
-        self.listbox = urwid.ListBox(walker)
-        self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
-        
+        self.display_to_top('MALSnakes - pulling in list...')
+        self.current_view = 1
         lst = malconstrict.malapi.get_anime_list(username)
-        lst = lst.anime
+        if lst == None:
+            lst = []
+        else:
+            lst = lst.anime
         self.listowner = username
         self.cached_list = lst
         categories = malconstrict.helpers.sort_anime_sectional(lst, how='title')
         self.cached_sections = categories
+        self.catfocus = 0
         items = []
-        for cat in self.cats:
-            i = 1
-            cat_anime = categories[cat]
-            items.append(CategoryItemWidget(cat))
-            for anime in cat_anime:
-                items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
-                i = i + 1
+        i = 1
+        cat_anime = categories[self.cats[self.catfocus]]
+        items.append(CategoryItemWidget(self.cats[self.catfocus]))
+        for anime in cat_anime:
+            items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+            i = i + 1
         walker = urwid.SimpleListWalker(items)
         self.listbox = urwid.ListBox(walker)
         self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
         self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
         self.view.set_focus('body')
-        self.howsorted = 0
+        self.list_sort_type = 0
         
         if username == self.username:
-            self.display_to_top('MALSnakes - viewing your list   [' + self.sorts[self.howsorted] + ']')
+            self.display_to_top('MALSnakes - viewing your list   [' + self.list_sorts[self.list_sort_type] + ']')
         else:
-            self.display_to_top('MALSnakes - viewing ' + username + "'s list   [" + self.sorts[self.howsorted] + ']')
+            self.display_to_top('MALSnakes - viewing ' + username + "'s list   [" + self.list_sorts[self.list_sort_type] + ']')
 
 
+    def pull_in_anime_query_list(self, query):
+        """Pulls in an anime's details"""
+        self.current_view = 2
+        self.display_to_top('MALSnakes - pulling in anime...')
+        lst = malconstrict.malapi.search_anime(query)
+        malconstrict.helpers.sort_anime(lst, how='title')
+        self.cached_list = lst
+        self.cached_sections = {}
+        
+        items = []
+        i = 1
+        for anime in lst:
+            items.append(ItemWidget(i, anime.title + ' [' + str(anime.members_score) + ']'))
+            i = i + 1
+        walker = urwid.SimpleListWalker(items)
+        self.listbox = urwid.ListBox(walker)
+        self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
+        self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
+        self.view.set_focus('body')
+        self.anime_search_sort_type = 0
+        self.last_query = query
+        self.display_to_top('MALSnakes - showing results for "' + self.last_query + '"   [' + self.anime_search_sorts[self.anime_search_sort_type] + ']')
+        
+        return
+    
+    
     def login(self):
         self.foot = LoginWidget('username: ')
         self.view.set_footer(self.foot)
@@ -357,7 +433,7 @@ class MyApp(object):
         self.view.set_footer(self.foot)
         self.view.set_focus('footer')
         urwid.connect_signal(
-            self.foot, 'anime_entered', self.username_entered)
+            self.foot, 'anime_entered', self.anime_entered)
         urwid.connect_signal(self.foot, 'query_escaped', self.query_escaped)
     
 
@@ -412,7 +488,15 @@ class MyApp(object):
     
     
     def anime_entered(self, content):
-        return
+        self.view.set_focus('body')
+        urwid.disconnect_signal(
+            self, self.foot, 'anime_entered', self.anime_entered)
+        urwid.disconnect_signal(
+            self, self.foot, 'query_escaped', self.query_escaped)
+        
+        self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
+        self.display_to_top('MALSnakes - showing results for "' + content + '"')
+        self.pull_in_anime_query_list(content)
     
     
     def search_entered(self, content):
