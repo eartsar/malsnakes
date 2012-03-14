@@ -249,9 +249,9 @@ class MyApp(object):
         elif data is 'tab':
             self.change_list_sort()
         elif data is ',':
-            self.listbox.keypress([0, 10], 'page down')
-        elif data is '.':
             self.listbox.keypress([0, 10], 'page up')
+        elif data is '.':
+            self.listbox.keypress([0, 10], 'page down')
 
 
 
