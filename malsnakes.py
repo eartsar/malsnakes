@@ -4,6 +4,28 @@ import malconstrict.malapi
 
 
 ############# WIDGET CLASSES ##############
+class CategoryItemWidget (urwid.WidgetWrap):
+    def __init__ (self, message):
+        self.id = id
+        self.title = urwid.Text('CATEGORY')
+        self.description = urwid.Text(message.upper())
+        self.item = [
+            (
+                'fixed',
+                15,
+                urwid.Padding(urwid.AttrWrap( self.title, 'head', 'focus'), left=2)
+            ),
+            urwid.AttrWrap(self.description, 'head', 'focus'),
+        ]
+        self.content = message
+        w = urwid.Columns(self.item)
+        self.__super.__init__(w)
+
+    def selectable (self):
+        return False
+
+    def keypress(self, size, key):
+        return key
 
 
 class StatusItemWidget (urwid.WidgetWrap):
@@ -142,8 +164,17 @@ class MyApp(object):
         self.username = ''
         self.password = ''
         self.cached_list = []
+        self.cached_sections = {}
         self.cached_anime = None
         self.authenticated = False
+        self.howsorted = 0
+        self.listowner = ''
+        self.cats = ('watching', 'completed', 'dropped', 'on-hold', 'plan to watch')
+        self.sorts = ('sort: categorized by title',
+                    'sort: categorized by title',
+                    'sort: full by title',
+                    'sort: full by score'
+        )
         
         # defines the color palette of the main window
         palette = [
@@ -175,7 +206,10 @@ class MyApp(object):
         urwid.connect_signal(walker, 'modified', self.update)
         loop.run()
 
-
+    
+    def display_to_top(self, message):
+        self.view.set_header(urwid.AttrWrap(urwid.Text(message), 'head'))
+    
     def update(self):
         focus = self.listbox.get_focus().content
         self.view.set_header(urwid.AttrWrap(urwid.Text('selected: %s' % str(focus)), 'focus'))
@@ -198,11 +232,13 @@ class MyApp(object):
             return
         elif data is 'r':
             self.refresh_own_list()
-        if data is 'enter':
+        elif data is 'enter':
             focus = self.listbox.get_focus()[0].content
             self.view.set_header(urwid.AttrWrap(urwid.Text('selected: %s' % str(focus)), 'head'))
-        if data is 'l':
+        elif data is 'l':
             self.login()
+        elif data is 't':
+            self.change_list_sort()
 
 
 
@@ -217,6 +253,49 @@ class MyApp(object):
             return
         else:
             self.pull_in_list(self.username)
+    
+    
+    def change_list_sort(self):
+        if self.cached_list == [] or self.cached_sections == {}:
+            print self.cached_list
+            print self.cached_sections
+            return
+        
+        # categorized by title -> categorized by score -> full by title -> full by score
+        self.howsorted = (self.howsorted + 1) % 4
+        if self.howsorted == 0:
+            self.cached_sections = malconstrict.helpers.sort_anime_sectional(self.cached_list, how='title')
+        elif self.howsorted == 1:
+            self.cached_sections = malconstrict.helpers.sort_anime_sectional(self.cached_list, how='score')
+        elif self.howsorted == 2:
+            malconstrict.helpers.sort_anime(self.cached_list, how='title')
+        elif self.howsorted == 3:
+            malconstrict.helpers.sort_anime(self.cached_list, how='score')
+        
+        items = []
+        if self.howsorted == 0 or self.howsorted == 1:
+            for cat in self.cats:
+                i = 1
+                cat_anime = self.cached_sections[cat]
+                items.append(CategoryItemWidget(cat))
+                for anime in cat_anime:
+                    items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                    i = i + 1
+        else:
+            i = 1
+            for anime in self.cached_list:
+                items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                i = i + 1
+        walker = urwid.SimpleListWalker(items)
+        self.listbox = urwid.ListBox(walker)
+        self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
+        self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
+        self.view.set_focus('body')
+
+        if self.listowner == self.username:
+            self.display_to_top('MALSnakes - viewing your list   [' + self.sorts[self.howsorted] + ']')
+        else:
+            self.display_to_top('MALSnakes - viewing ' + self.listowner + "'s list   [" + self.sorts[self.howsorted] + ']')
 
 
     def pull_in_list(self, username):
@@ -229,26 +308,30 @@ class MyApp(object):
         self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
         
         lst = malconstrict.malapi.get_anime_list(username)
-        cached_list = lst
+        lst = lst.anime
+        self.listowner = username
+        self.cached_list = lst
+        categories = malconstrict.helpers.sort_anime_sectional(lst, how='title')
+        self.cached_sections = categories
         items = []
-        i = 1
-        for anime in lst.anime:
-            items.append(ItemWidget(i, anime.title))
-            i = i + 1
+        for cat in self.cats:
+            i = 1
+            cat_anime = categories[cat]
+            items.append(CategoryItemWidget(cat))
+            for anime in cat_anime:
+                items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                i = i + 1
         walker = urwid.SimpleListWalker(items)
         self.listbox = urwid.ListBox(walker)
         self.view.set_body(urwid.Frame(urwid.AttrWrap(self.listbox, 'body')))
         self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
         self.view.set_focus('body')
+        self.howsorted = 0
         
         if username == self.username:
-            self.view.set_header(urwid.AttrMap(
-                    urwid.Text('MALSnakes - viewing your list'),
-                    'head'))
+            self.display_to_top('MALSnakes - viewing your list   [' + self.sorts[self.howsorted] + ']')
         else:
-            self.view.set_header(urwid.AttrMap(
-                    urwid.Text('MALSnakes - viewing ' + username + "'s list"),
-                    'head'))
+            self.display_to_top('MALSnakes - viewing ' + username + "'s list   [" + self.sorts[self.howsorted] + ']')
 
 
     def login(self):
@@ -300,8 +383,7 @@ class MyApp(object):
         self.username = content[0]
         self.password = content[1]
         self.view.set_footer(urwid.AttrWrap(self.default_footer, 'foot'))
-        self.view.set_header(urwid.AttrMap(
-                urwid.Text('MALSnakes - logged in as ' + self.username), 'head'))
+        self.display_to_top('MALSnakes - logged in as ' + self.username)
         self.authenticated = True
     
     
