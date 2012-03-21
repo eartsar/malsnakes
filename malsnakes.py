@@ -52,9 +52,28 @@ class StatusItemWidget (urwid.WidgetWrap):
         return key
 
 
-
-class ItemWidget (urwid.WidgetWrap):
+class AnimeItemWidget (urwid.WidgetWrap):
     def __init__ (self, id, description):
+        self.id = id
+        self.title = urwid.Text(str(id))
+        self.description = urwid.Text(description)
+        self.item = [
+            ('fixed', 15, urwid.Padding(urwid.AttrWrap( self.title, 'body', 'focus'), left=2)),
+            urwid.AttrWrap(self.description, 'body', 'focus'),
+        ]
+        self.content = 'item ' + str(id)
+        w = urwid.Columns(self.item)
+        self.__super.__init__(w)
+
+    def selectable (self):
+        return True
+
+    def keypress(self, size, key):
+        return key
+
+
+class ListItemWidget (urwid.WidgetWrap):
+    def __init__ (self, id, description, anime_id):
         self.id = id
         self.title = urwid.Text(str(id))
         self.description = urwid.Text(description)
@@ -238,7 +257,8 @@ class MyApp(object):
         elif data is 's':
             self.search_list()
         elif data is 'v':
-            return
+            focus = self.listbox.get_focus()[0].content
+            self.view_anime_details(focus)
         elif data is 'r':
             self.refresh_own_list()
         elif data is 'enter':
@@ -256,6 +276,10 @@ class MyApp(object):
 
 
     ############# METHODS CALLED VIA KEYSTROKES ###############
+    def view_anime_details(self, entry):
+        return
+    
+    
     def refresh_own_list(self):
         if not self.authenticated:
             items = []
@@ -283,7 +307,7 @@ class MyApp(object):
             cat_anime = self.cached_sections[self.cats[self.catfocus]]
             items.append(CategoryItemWidget(self.cats[self.catfocus]))
             for anime in cat_anime:
-                items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                items.append(ListItemWidget(i, anime.title + ' [' + str(anime.score) + ']', anime.id))
                 i = i + 1
         elif self.list_sort_type == 2 or self.list_sort_type == 3:
             return
@@ -317,12 +341,12 @@ class MyApp(object):
                 cat_anime = self.cached_sections[self.cats[self.catfocus]]
                 items.append(CategoryItemWidget(self.cats[self.catfocus]))
                 for anime in cat_anime:
-                    items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                    items.append(ListItemWidget(i, anime.title + ' [' + str(anime.score) + ']', anime.id))
                     i = i + 1
             else:
                 i = 1
                 for anime in self.cached_list:
-                    items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                    items.append(ListItemWidget(i, anime.title + ' [' + str(anime.score) + ']', anime.id))
                     i = i + 1
             walker = urwid.SimpleListWalker(items)
             self.listbox = urwid.ListBox(walker)
@@ -344,7 +368,7 @@ class MyApp(object):
             items = []
             i = 1
             for anime in self.cached_list:
-                items.append(ItemWidget(i, anime.title + ' [' + str(anime.members_score) + ']'))
+                items.append(ListItemWidget(i, anime.title + ' [' + str(anime.members_score) + ']', anime.id))
                 i = i + 1
             walker = urwid.SimpleListWalker(items)
             self.listbox = urwid.ListBox(walker)
@@ -373,7 +397,7 @@ class MyApp(object):
         cat_anime = categories[self.cats[self.catfocus]]
         items.append(CategoryItemWidget(self.cats[self.catfocus]))
         for anime in cat_anime:
-            items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+            items.append(ListItemWidget(i, anime.title + ' [' + str(anime.score) + ']', anime.id))
             i = i + 1
         walker = urwid.SimpleListWalker(items)
         self.listbox = urwid.ListBox(walker)
@@ -402,7 +426,7 @@ class MyApp(object):
         items = []
         i = 1
         for anime in lst:
-            items.append(ItemWidget(i, anime.title + ' [' + str(anime.members_score) + ']'))
+            items.append(ListItemWidget(i, anime.title + ' [' + str(anime.members_score) + ']', anime.id))
             i = i + 1
         walker = urwid.SimpleListWalker(items)
         self.listbox = urwid.ListBox(walker)
@@ -521,7 +545,7 @@ class MyApp(object):
             i = 1
             items.append(CategoryItemWidget(self.cats[self.catfocus]))
             for anime in lst:
-                items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                items.append(ListItemWidget(i, anime.title + ' [' + str(anime.score) + ']', anime.id))
                 i = i + 1
         # full
         elif (self.current_view == 1 and self.list_sort_type in (2, 3)) or self.current_view == 2:
@@ -530,9 +554,10 @@ class MyApp(object):
             i = 1
             for anime in lst:
                 if self.current_view == 1:
-                    items.append(ItemWidget(i, anime.title + ' [' + str(anime.score) + ']'))
+                    items.append(ListItemWidget(i, anime.title + ' [' + str(anime.score) + ']', anime.id))
                 elif self.current_view == 2:
-                    items.append(ItemWidget(i, anime.title + ' [' + str(anime.members_score) + ']'))
+                    items.append(
+                        ListItemWidget(i, anime.title + ' [' + str(anime.members_score) + ']', anime.id))
                 i = i + 1
         
         walker = urwid.SimpleListWalker(items)
